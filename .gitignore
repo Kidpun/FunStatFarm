@@ -1,0 +1,26 @@
+# Environment variables
+.env
+
+# Telegram session files
+*.session
+*.session-journal
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Cooldown tracking
+limit_cooldown.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
