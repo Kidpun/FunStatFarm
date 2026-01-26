@@ -1,0 +1,7 @@
+telethon>=1.28.0
+Pillow>=10.0.0
+pytesseract>=0.3.10
+easyocr>=1.7.0
+numpy>=1.24.0
+certifi>=2023.0.0
+rich>=13.0.0
