@@ -10,12 +10,12 @@ from funstat.config import initialize_config, save_credentials
 
 def setup_api_credentials():
     import time
-    
+
     display_manager.pause_for_input()
-    
+
     os.system('clear' if os.name != 'nt' else 'cls')
     sys.stdout.flush()
-    
+
     print("\n" + "="*75)
     print("                     FunStat Farm")
     print("="*75)
@@ -24,7 +24,7 @@ def setup_api_credentials():
     print("Введите данные ниже:\n")
     print("="*75 + "\n")
     sys.stdout.flush()
-    
+
     while True:
         try:
             api_id = input("API ID: ").strip()
@@ -32,13 +32,13 @@ def setup_api_credentials():
                 print("\n[✗] API ID должен быть числом\n")
                 sys.stdout.flush()
                 continue
-            
+
             api_hash = input("API Hash: ").strip()
             if not api_hash:
                 print("\n[✗] API Hash не может быть пустым\n")
                 sys.stdout.flush()
                 continue
-            
+
             if save_credentials(api_id, api_hash):
                 print("\n[✓] Credentials сохранены!\n")
                 sys.stdout.flush()
@@ -86,17 +86,17 @@ def check_ocr():
 
 async def main():
     show_loading_screen()
-    
+
     initialize_config()
-    
+
     import funstat.config
     if funstat.config.API_ID is None or funstat.config.API_HASH is None:
         setup_api_credentials()
-    
+
     if funstat.config.API_ID is None or funstat.config.API_HASH is None:
         print_error("Ошибка: API credentials не настроены. Выход.")
         sys.exit(1)
-    
+
     farm = FunStatFarm()
     await farm.start()
 
