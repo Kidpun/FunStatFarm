@@ -111,7 +111,6 @@ def preprocess_image(image, method='auto'):
             scale = max(min_width / width, min_height / height) * 4.0
             new_size = (int(width * scale), int(height * scale))
             image = image.resize(new_size, Image.LANCZOS)
-            safe_print(f"[OCR] Увеличен размер: {width}x{height} -> {new_size[0]}x{new_size[1]} (scale={scale:.2f})")
 
         if method == 'binary' or method == 'auto':
             gray = image.convert('L')
@@ -122,18 +121,15 @@ def preprocess_image(image, method='auto'):
                 img_array = np.array(gray)
 
                 mean_brightness = np.mean(img_array)
-                safe_print(f"[OCR] Средняя яркость: {mean_brightness:.1f}")
 
                 if mean_brightness > 160:
                     gray_enhanced = ImageOps.autocontrast(gray, cutoff=10)
                     img_array = np.array(gray_enhanced)
-                    safe_print(f"[OCR] Применен autocontrast для светлого изображения")
 
                 try:
                     import cv2
                     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
                     img_array = clahe.apply(img_array)
-                    safe_print(f"[OCR] CLAHE применен для улучшения контраста")
                 except:
                     pass
 
@@ -149,14 +145,11 @@ def preprocess_image(image, method='auto'):
 
                 if mean_brightness > 180:
                     threshold = min(threshold, 120)
-                    safe_print(f"[OCR] ОЧЕНЬ светлое изображение, агрессивный порог: {threshold}")
                 elif mean_brightness > 160:
                     threshold = min(threshold, 130)
-                    safe_print(f"[OCR] Светлое изображение, порог: {threshold}")
 
                 binary = np.where(img_array > threshold, 255, 0).astype(np.uint8)
                 image = Image.fromarray(binary).convert('RGB')
-                safe_print(f"[OCR] Бинаризация (порог={threshold})")
             else:
                 from PIL import ImageOps
                 image = ImageOps.autocontrast(gray, cutoff=10)
@@ -177,13 +170,12 @@ def preprocess_image(image, method='auto'):
                     contrast_score = sum(stat.stddev) + (stat.mean[0] * 0.1)
                     if contrast_score > best_score:
                         best_score = contrast_score
-                        best_angle = angle
+                    best_angle = angle
 
                 if abs(best_angle) > 0.5:
                     image = image.rotate(best_angle, expand=False, fillcolor='white', resample=Image.BICUBIC)
-                    safe_print(f"[OCR] Выровнено изображение: поворот на {best_angle:.1f}° (score={best_score:.1f})")
-            except Exception as e:
-                safe_print(f"[OCR] Ошибка выравнивания: {e}")
+            except Exception:
+                pass
 
         if method == 'enhance' or method == 'auto':
             gray_for_analysis = image.convert('L')
@@ -194,11 +186,9 @@ def preprocess_image(image, method='auto'):
             if mean_brightness < 100:
                 enhancer = ImageEnhance.Brightness(image)
                 image = enhancer.enhance(1.8)
-                safe_print(f"[OCR] Увеличена яркость (было темно: {mean_brightness:.0f})")
             elif mean_brightness > 200:
                 enhancer = ImageEnhance.Brightness(image)
                 image = enhancer.enhance(0.7)
-                safe_print(f"[OCR] Уменьшена яркость (было светло: {mean_brightness:.0f})")
 
             if mean_brightness > 170:
                 if NUMPY_AVAILABLE:
@@ -210,7 +200,6 @@ def preprocess_image(image, method='auto'):
                     if dark_ratio < 0.35:
                         img_array = 255 - img_array
                         image = Image.fromarray(img_array).convert('RGB')
-                        safe_print(f"[OCR] ИНВЕРСИЯ! Темный текст на светлом (ratio={dark_ratio:.2f})")
 
             enhancer = ImageEnhance.Contrast(image)
             image = enhancer.enhance(3.8)
@@ -219,7 +208,6 @@ def preprocess_image(image, method='auto'):
             image = enhancer.enhance(3.2)
 
             image = image.filter(ImageFilter.UnsharpMask(radius=1, percent=120, threshold=2))
-            safe_print(f"[OCR] Применен UnsharpMask для рукописного текста")
 
         if method == 'denoise' or method == 'auto':
             image = image.filter(ImageFilter.MedianFilter(size=3))
@@ -233,8 +221,7 @@ def preprocess_image(image, method='auto'):
                 pass
 
         return image
-    except Exception as e:
-        safe_print(f"[OCR] Ошибка предобработки ({method}): {e}")
+    except Exception:
         return image
 
 
@@ -245,156 +232,39 @@ async def extract_text_from_image(image_data):
     try:
         original_image = Image.open(io.BytesIO(image_data))
 
-        preprocess_methods = ['auto', 'binary', 'enhance', 'deskew', 'denoise']
-        all_results = []
-
         if OCR_AVAILABLE:
             try:
-                languages_to_try = ['rus', 'rus+eng', 'eng']
+                image_processed = preprocess_image(original_image.copy(), method='auto')
+
                 configs = [
-                    r'--oem 3 --psm 7',
-                    r'--oem 3 --psm 8',
-                    r'--oem 1 --psm 7',
-                    r'--oem 1 --psm 8',
-                    r'--oem 3 --psm 13',
-                    r'--oem 3 --psm 6',
-                    r'--oem 3 --psm 11',
-                    r'--oem 3 --psm 10',
-                    r'--oem 3 --psm 3',
-                    r'--oem 3 --psm 4',
+                    ('rus', r'--oem 3 --psm 7'),
+                    ('rus', r'--oem 3 --psm 8'),
+                    ('rus+eng', r'--oem 3 --psm 7'),
                 ]
 
-                best_text = None
-                best_score = 0
-                best_method = None
-
-                for method in preprocess_methods:
+                for lang, config in configs:
                     try:
-                        image_processed = preprocess_image(original_image.copy(), method=method)
+                        text = pytesseract.image_to_string(image_processed, lang=lang, config=config)
+                        text = text.strip()
 
-                        for lang in languages_to_try:
-                            for config in configs:
-                                try:
-                                    text = pytesseract.image_to_string(image_processed, lang=lang, config=config)
-                                    text = text.strip()
+                        if text and len(text) >= 2:
+                            clean_text = re.sub(r'[^\w\s]', '', text)
+                            if not clean_text:
+                                continue
 
-                                    if text and len(text) >= 2:
-                                        clean_text = re.sub(r'[^\w\s]', '', text)
-                                        if not clean_text:
-                                            continue
+                            cyrillic_count = sum(1 for c in clean_text if 'А' <= c <= 'Я' or 'а' <= c <= 'я' or c == 'ё' or c == 'Ё')
 
-                                        cyrillic_count = sum(1 for c in clean_text if 'А' <= c <= 'Я' or 'а' <= c <= 'я' or c == 'ё' or c == 'Ё')
-                                        latin_count = sum(1 for c in clean_text if 'A' <= c <= 'Z' or 'a' <= c <= 'z')
-                                        digit_count = sum(1 for c in clean_text if c.isdigit())
-
-                                        score = cyrillic_count * 5 + latin_count * 2 - digit_count * 2
-
-                                        if 3 <= len(clean_text) <= 15:
-                                            score += len(clean_text) * 0.5
-
-                                        if all(c.isalnum() or c.isspace() for c in clean_text):
-                                            score += 3
-
-                                        safe_print(f"[OCR] Tesseract (method={method}, lang={lang}, config={config}): '{text}' (score={score:.1f})")
-
-                                        if cyrillic_count >= 1 or (latin_count >= 2 and len(clean_text) >= 3):
-                                            if score > best_score:
-                                                best_text = text
-                                                best_score = score
-                                                best_method = f"{method}/{lang}/{config}"
-                                                safe_print(f"[OCR] ⭐ Лучший результат: '{text}' (score={score:.1f}, method={best_method})")
-
-                                        if score > 5:
-                                            all_results.append((text, score, f"{method}/{lang}/{config}"))
-                                except Exception as e:
-                                    error_str = str(e).lower()
-                                    if 'rus' in lang and ('language data file' in error_str or 'language' in error_str):
-                                        break
-                                    continue
-                    except Exception as e:
-                        safe_print(f"[OCR] Ошибка предобработки ({method}): {e}")
+                            if cyrillic_count >= 1 and 3 <= len(clean_text) <= 15:
+                                normalized = normalize_ocr_text(text)
+                                if normalized and len(normalized) >= 2:
+                                    return normalized
+                    except Exception:
                         continue
+            except Exception:
+                pass
 
-                if best_text and best_score > 3:
-                    text = normalize_ocr_text(best_text)
-                    safe_print(f"[OCR] ✅ Финальный результат Tesseract: '{text}' (score={best_score:.1f}, method={best_method})")
-                    return text
-
-                if all_results and best_score <= 3:
-                    all_results.sort(key=lambda x: x[1], reverse=True)
-                    for text, score, method_info in all_results[:3]:
-                        normalized = normalize_ocr_text(text)
-                        if normalized and len(normalized) >= 2:
-                            safe_print(f"[OCR] Пробую альтернативный результат: '{normalized}' (score={score:.1f})")
-                            return normalized
-            except Exception as e:
-                safe_print(f"[OCR] Tesseract ошибка: {e}")
-
-        if EASYOCR_AVAILABLE:
-            try:
-                if not hasattr(extract_text_from_image, 'reader'):
-                    safe_print("[OCR] Инициализирую EasyOCR reader...")
-                    import ssl
-                    ssl._create_default_https_context = ssl._create_unverified_context
-                    extract_text_from_image.reader = easyocr.Reader(['ru', 'en'], gpu=False)
-
-                easyocr_results = []
-
-                for method in ['auto', 'binary']:
-                    try:
-                        img_processed = preprocess_image(original_image.copy(), method=method)
-
-                        if NUMPY_AVAILABLE:
-                            img_array = np.array(img_processed)
-                            results = extract_text_from_image.reader.readtext(img_array)
-                        else:
-                            import tempfile
-                            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-                                img_processed.save(tmp_file.name)
-                                tmp_path = tmp_file.name
-                            try:
-                                results = extract_text_from_image.reader.readtext(tmp_path)
-                            finally:
-                                try:
-                                    os.unlink(tmp_path)
-                                except:
-                                    pass
-
-                        if results:
-                            for result in results:
-                                if len(result) >= 2:
-                                    text = result[1]
-                                    confidence = result[2] if len(result) > 2 else 0
-                                    clean_text = re.sub(r'[^\w\s]', '', text)
-
-                                    if clean_text and len(clean_text) >= 2:
-                                        cyrillic_count = sum(1 for c in clean_text if 'А' <= c <= 'Я' or 'а' <= c <= 'я' or c == 'ё' or c == 'Ё')
-                                        latin_count = sum(1 for c in clean_text if 'A' <= c <= 'Z' or 'a' <= c <= 'z')
-
-                                        score = confidence * 100 + cyrillic_count * 10 + latin_count * 5
-
-                                        easyocr_results.append((text, score, confidence, method))
-                                        safe_print(f"[OCR] EasyOCR (method={method}): '{text}' (confidence={confidence:.2f}, score={score:.1f})")
-                    except Exception as e:
-                        safe_print(f"[OCR] EasyOCR ошибка с методом {method}: {e}")
-                        continue
-
-                if easyocr_results:
-                    easyocr_results.sort(key=lambda x: x[1], reverse=True)
-                    best_easyocr = easyocr_results[0]
-                    text = best_easyocr[0]
-                    normalized = normalize_ocr_text(text)
-
-                    if normalized and len(normalized) >= 2:
-                        safe_print(f"[OCR] ✅ Финальный результат EasyOCR: '{normalized}' (confidence={best_easyocr[2]:.2f}, score={best_easyocr[1]:.1f})")
-                        return normalized
-            except Exception as e:
-                safe_print(f"[OCR] EasyOCR критическая ошибка: {e}")
-
-        safe_print("[OCR] ❌ Не удалось распознать текст ни одним методом")
         return None
-    except Exception as e:
-        safe_print(f"[OCR] Ошибка обработки изображения: {e}")
+    except Exception:
         return None
 
 
@@ -422,15 +292,12 @@ def extract_word_from_captcha(text, image_data=None):
     text_normalized = normalize_ocr_text(text)
     text_normalized_lower = text_normalized.lower().replace(' ', '').replace('\n', '')
 
-    safe_print(f"[DEBUG extract_word] Ищу слово в тексте: '{text[:200] if len(text) > 200 else text}' (normalized: '{text_normalized_lower[:200] if len(text_normalized_lower) > 200 else text_normalized_lower}')")
-
     for emoji, words in emoji_to_words.items():
         for word in words:
             if len(word) < 2:
                 continue
             pattern = r'\b' + re.escape(word) + r'\b'
             if re.search(pattern, text_lower) or re.search(pattern, text_normalized_lower):
-                safe_print(f"[✓ HIGH] Найдено точное совпадение: '{word}' -> {emoji}")
                 return word, emoji, 100
 
     for emoji, words in emoji_to_words.items():
@@ -439,7 +306,6 @@ def extract_word_from_captcha(text, image_data=None):
                 continue
             pattern = r'\b' + re.escape(word) + r'\w*\b'
             if re.search(pattern, text_lower) or re.search(pattern, text_normalized_lower):
-                safe_print(f"[✓ GOOD] Найдено частичное совпадение (слово): '{word}' -> {emoji}")
                 return word, emoji, 85
 
     text_clean = text_normalized_lower.strip()
@@ -831,7 +697,7 @@ def find_matching_button(buttons, target_emoji):
                         safe_print(f"[DEBUG find_matching_button] ✅ НАЙДЕНО точное совпадение в кнопке [{row_idx}][{btn_idx}]")
                     else:
                         safe_print(f"[DEBUG find_matching_button] ✅ НАЙДЕНО синоним эмодзи '{check_emoji}' (вместо '{target_emoji}') в кнопке [{row_idx}][{btn_idx}]")
-                return btn
+                    return btn
 
             if btn_text_raw:
                 for char in btn_text_raw:
@@ -850,12 +716,12 @@ def find_matching_button(buttons, target_emoji):
                 normalized_btn = unicodedata.normalize('NFKD', btn_text_raw)
                 for check_emoji in target_emojis:
                     normalized_target = unicodedata.normalize('NFKD', check_emoji)
-                    if normalized_target in normalized_btn:
+                if normalized_target in normalized_btn:
                         if check_emoji == target_emoji:
                             safe_print(f"[DEBUG find_matching_button] ✅ НАЙДЕНО по нормализованному эмодзи в кнопке [{row_idx}][{btn_idx}]")
                         else:
                             safe_print(f"[DEBUG find_matching_button] ✅ НАЙДЕНО синоним эмодзи '{check_emoji}' (вместо '{target_emoji}') по нормализованному эмодзи в кнопке [{row_idx}][{btn_idx}]")
-                        return btn
+                return btn
             except:
                 pass
 
