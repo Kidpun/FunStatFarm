@@ -599,6 +599,34 @@ class FunStatFarm:
         
         return None, None, 0
 
+    async def _fetch_captcha_message(self):
+        """Ищет текущее сообщение с капчей в captcha_bot и source_bot. Возвращает msg или None."""
+        animal_emojis = [
+            '🐶', '🐱', '🐰', '👻', '🤖', '🐻', '🐷', '🐸', '🐵',
+            '🐔', '🐧', '🐦', '🦆', '🦅', '🦉', '🐴', '🦄', '🐝',
+            '🦋', '🐞', '🐛', '🦗', '🐜', '🐢', '🐍', '🦎', '🐟',
+            '⭐', '🌟', '💫', '✨', '🐒', '🦊',
+        ]
+        for bot in [self.captcha_bot, self.source_bot]:
+            try:
+                msgs = await self.client.get_messages(bot, limit=10)
+                for m in msgs or []:
+                    has_media = m.media is not None
+                    has_buttons = m.buttons is not None and len(m.buttons) > 0
+                    if m.text and check_captcha(m.text, has_media, has_buttons):
+                        return m
+                    if not m.text and has_media and has_buttons:
+                        has_emoji = any(
+                            any(emoji in (btn.text or "") for emoji in animal_emojis)
+                            for row in (m.buttons or [])
+                            for btn in row
+                        )
+                        if has_emoji:
+                            return m
+            except Exception:
+                pass
+        return None
+
     async def handle_captcha(self, msg):
         safe_print("\n" + "=" * 60)
         safe_print("[CAPTCHA] !!! ОБНАРУЖЕНА КАПЧА !!!")
@@ -624,26 +652,25 @@ class FunStatFarm:
                 safe_print("=" * 60 + "\n")
                 return
         
-        solved = await self.solve_captcha(msg)
-        
-        if solved:
-            safe_print("[CAPTCHA] Автоматическое решение успешно!")
-            safe_print("=" * 60 + "\n")
-            return
-        
-        self.paused = True
-        safe_print("[CAPTCHA] Автоматическое решение не удалось.")
-        safe_print("[CAPTCHA] Скрипт приостановлен.")
-        safe_print("[CAPTCHA] Пожалуйста, пройдите капчу в Telegram вручную.")
-        safe_print("=" * 60)
-        
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, wait_for_keypress, 
-                                   "[CAPTCHA] После прохождения капчи нажмите любую клавишу для продолжения...")
-        
-        safe_print("[CAPTCHA] Продолжаю работу...")
-        safe_print("=" * 60 + "\n")
-        self.paused = False
+        attempt = 0
+        while True:
+            attempt += 1
+            safe_print(f"[CAPTCHA] Попытка #{attempt}...")
+            solved = await self.solve_captcha(msg)
+            
+            if solved:
+                safe_print("[CAPTCHA] Автоматическое решение успешно!")
+                safe_print("=" * 60 + "\n")
+                return
+            
+            safe_print("[CAPTCHA] Не угадал, повторяю через 3 сек...")
+            await asyncio.sleep(3)
+            
+            msg = await self._fetch_captcha_message()
+            if msg is None:
+                safe_print("[CAPTCHA] Капча исчезла (решена вручную?), продолжаю.")
+                safe_print("=" * 60 + "\n")
+                return
 
     async def farm_loop(self):
         safe_print("[WAIT] Начинаю...")
