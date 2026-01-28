@@ -4,11 +4,11 @@ import re
 API_ID = None
 API_HASH = None
 SESSION_NAME = 'user.session'
-LIMIT_COOLDOWN_FILE = 'limit_cooldown.txt'
-COOLDOWN_HOURS = 24
-SOURCE_BOT = "@en_SearchBot"
+RECOVERY_RETRY_HOURS = 1
+SOURCE_BOT = 5506654256
 CAPTCHA_BOT = 8345627795
 TARGET_BOT = "@Funstat_robotibot"
+LIMIT_CHECK_BOT = 8345627795
 INTERVAL = 5
 
 def load_from_env():
@@ -35,36 +35,36 @@ def load_from_env():
 
 def initialize_config():
     global API_ID, API_HASH
-
+    
     if load_from_env():
         return True
-
+    
     config_path = os.path.join(os.path.dirname(__file__), 'config.py')
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
             content = f.read()
-
+        
         api_id_match = re.search(r'^API_ID\s*=\s*(\d+)', content, re.MULTILINE)
         api_hash_match = re.search(r"^API_HASH\s*=\s*['\"]([^'\"]+)['\"]", content, re.MULTILINE)
-
+        
         if api_id_match and api_hash_match:
             API_ID = int(api_id_match.group(1))
             API_HASH = api_hash_match.group(1)
             return True
     except Exception as e:
         print(f"Error reading config: {e}")
-
+    
     return False
 
 def save_credentials(api_id, api_hash):
     global API_ID, API_HASH
-
+    
     try:
         API_ID = int(api_id)
         API_HASH = str(api_hash)
     except ValueError:
         return False
-
+    
     env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
     try:
         with open(env_path, 'w', encoding='utf-8') as f:
@@ -73,12 +73,12 @@ def save_credentials(api_id, api_hash):
         return True
     except Exception as e:
         print(f"Error saving to .env: {e}")
-
+    
     config_path = os.path.join(os.path.dirname(__file__), 'config.py')
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
-
+        
         with open(config_path, 'w', encoding='utf-8') as f:
             for line in lines:
                 if line.strip().startswith('API_ID ='):

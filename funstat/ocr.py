@@ -106,9 +106,9 @@ def preprocess_image(image, method='auto'):
         original_size = image.size
         width, height = original_size
 
-        min_width, min_height = 1200, 1000
+        min_width, min_height = 800, 600
         if width < min_width or height < min_height:
-            scale = max(min_width / width, min_height / height) * 4.0
+            scale = max(min_width / width, min_height / height) * 2.2
             new_size = (int(width * scale), int(height * scale))
             image = image.resize(new_size, Image.LANCZOS)
 
@@ -202,16 +202,16 @@ def preprocess_image(image, method='auto'):
                         image = Image.fromarray(img_array).convert('RGB')
 
             enhancer = ImageEnhance.Contrast(image)
-            image = enhancer.enhance(3.8)
+            image = enhancer.enhance(2.5)
 
             enhancer = ImageEnhance.Sharpness(image)
-            image = enhancer.enhance(3.2)
+            image = enhancer.enhance(2.0)
 
-            image = image.filter(ImageFilter.UnsharpMask(radius=1, percent=120, threshold=2))
+            image = image.filter(ImageFilter.UnsharpMask(radius=1, percent=80, threshold=3))
 
         if method == 'denoise' or method == 'auto':
             image = image.filter(ImageFilter.MedianFilter(size=3))
-            image = image.filter(ImageFilter.SMOOTH_MORE)
+            image = image.filter(ImageFilter.SMOOTH)
 
         if method == 'auto':
             gray_final = image.convert('L')
@@ -225,6 +225,35 @@ def preprocess_image(image, method='auto'):
         return image
 
 
+def _run_tesseract(image, configs):
+    """Запуск tesseract с разными (lang, config). Возвращает список (normalized, raw)."""
+    seen = set()
+    out = []
+    for lang, cfg in configs:
+        try:
+            text = pytesseract.image_to_string(image, lang=lang, config=cfg)
+            text = (text or "").strip()
+            if not text or len(text) < 2:
+                continue
+            clean = re.sub(r'[^\w\s]', '', text)
+            if not clean:
+                continue
+            cyrillic = sum(1 for c in clean if 'А' <= c <= 'Я' or 'а' <= c <= 'я' or c in 'ёЁ')
+            if cyrillic < 1 or not (2 <= len(clean) <= 20):
+                continue
+            norm = normalize_ocr_text(text)
+            if not norm or len(norm) < 2:
+                continue
+            key = norm.lower().replace(" ", "")
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append((norm, text))
+        except Exception:
+            continue
+    return out
+
+
 async def extract_text_from_image(image_data):
     if not image_data:
         return None
@@ -232,38 +261,45 @@ async def extract_text_from_image(image_data):
     try:
         original_image = Image.open(io.BytesIO(image_data))
 
-        if OCR_AVAILABLE:
+        if not OCR_AVAILABLE:
+            return None
+
+        configs = [
+            ("rus", "--oem 3 --psm 8"),
+            ("rus", "--oem 3 --psm 7"),
+            ("rus", "--oem 3 --psm 6"),
+            ("rus+eng", "--oem 3 --psm 8"),
+            ("rus+eng", "--oem 3 --psm 7"),
+            ("rus+eng", "--oem 3 --psm 6"),
+        ]
+
+        candidates = []
+        try:
+            processed = preprocess_image(original_image.copy(), method="auto")
+            candidates = _run_tesseract(processed, configs)
+        except Exception:
+            pass
+
+        if not candidates:
             try:
-                image_processed = preprocess_image(original_image.copy(), method='auto')
-
-                configs = [
-                    ('rus', r'--oem 3 --psm 7'),
-                    ('rus', r'--oem 3 --psm 8'),
-                    ('rus+eng', r'--oem 3 --psm 7'),
-                ]
-
-                for lang, config in configs:
-                    try:
-                        text = pytesseract.image_to_string(image_processed, lang=lang, config=config)
-                        text = text.strip()
-
-                        if text and len(text) >= 2:
-                            clean_text = re.sub(r'[^\w\s]', '', text)
-                            if not clean_text:
-                                continue
-
-                            cyrillic_count = sum(1 for c in clean_text if 'А' <= c <= 'Я' or 'а' <= c <= 'я' or c == 'ё' or c == 'Ё')
-
-                            if cyrillic_count >= 1 and 3 <= len(clean_text) <= 15:
-                                normalized = normalize_ocr_text(text)
-                                if normalized and len(normalized) >= 2:
-                                    return normalized
-                    except Exception:
-                        continue
+                candidates = _run_tesseract(original_image, configs)
             except Exception:
                 pass
 
-        return None
+        if not candidates:
+            return None
+
+        best_text = None
+        best_conf = -1
+        for norm, _ in candidates:
+            w, e, c = extract_word_from_captcha(norm, None)
+            if w and e and c > best_conf:
+                best_conf = c
+                best_text = norm
+
+        if best_text:
+            return best_text
+        return candidates[0][0]
     except Exception:
         return None
 
@@ -398,6 +434,8 @@ def extract_word_from_captcha(text, image_data=None):
         'ака': 'собака',
         'обыка': 'собака',
         'быка': 'собака',
+        'ооо': 'собака',
+        'оо': 'собака',
         'крол': 'кролик',
         'кроли': 'кролик',
         'кролик': 'кролик',
@@ -519,7 +557,6 @@ def extract_word_from_captcha(text, image_data=None):
         'ааа': None,
         'и': None,
         'о': None,
-        'оо': None,
         'к': None,
         '.': None,
         ',': None,
@@ -716,13 +753,13 @@ def find_matching_button(buttons, target_emoji):
                 normalized_btn = unicodedata.normalize('NFKD', btn_text_raw)
                 for check_emoji in target_emojis:
                     normalized_target = unicodedata.normalize('NFKD', check_emoji)
-                if normalized_target in normalized_btn:
+                    if normalized_target in normalized_btn:
                         if check_emoji == target_emoji:
                             safe_print(f"[DEBUG find_matching_button] ✅ НАЙДЕНО по нормализованному эмодзи в кнопке [{row_idx}][{btn_idx}]")
                         else:
                             safe_print(f"[DEBUG find_matching_button] ✅ НАЙДЕНО синоним эмодзи '{check_emoji}' (вместо '{target_emoji}') по нормализованному эмодзи в кнопке [{row_idx}][{btn_idx}]")
-                return btn
-            except:
+                        return btn
+            except Exception:
                 pass
 
     synonyms_list = [e for e in target_emojis if e != target_emoji]
