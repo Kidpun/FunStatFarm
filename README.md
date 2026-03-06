@@ -73,8 +73,8 @@ python3 main.py
 
 ```python
 SOURCE_BOT = "@en_SearchBot"      # Источник сообщений
-CAPTCHA_BOT = 8345627795          # ID бота капчи
-TARGET_BOT = "@Funstat_robotibot" # Куда пересылать
+CAPTCHA_BOT = 8799646329         # ID бота капчи
+TARGET_BOT = "@funstatfanstatkidbot" # Куда пересылать
 INTERVAL = 5                       # Интервал между циклами (сек)
 COOLDOWN_HOURS = 24                # Кулдаун при лимите (часы)
 ```
