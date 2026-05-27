@@ -137,7 +137,7 @@ class FunStatFarm:
         try:
             if not self.client.is_connected():
                 await self.client.connect()
-        except:
+        except Exception:
             await self.client.connect()
         
         display_manager.pause_for_input()
@@ -574,7 +574,7 @@ class FunStatFarm:
                             finally:
                                 try:
                                     os.unlink(tmp_path)
-                                except:
+                                except Exception:
                                     pass
                         
                         if results:

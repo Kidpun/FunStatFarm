@@ -130,7 +130,7 @@ def preprocess_image(image, method='auto'):
                     import cv2
                     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
                     img_array = clahe.apply(img_array)
-                except:
+                except Exception:
                     pass
 
                 hist, bins = np.histogram(img_array.flatten(), 256, [0, 256])

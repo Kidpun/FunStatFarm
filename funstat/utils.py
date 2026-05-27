@@ -72,7 +72,7 @@ class DisplayManager:
                             logs_text.append(rendered)
                         else:
                             logs_text.append(str(log_line))
-                    except:
+                    except Exception:
                         logs_text.append(str(log_line))
                     if i < len(log_buffer) - 1:
                         logs_text.append("\n")
@@ -142,7 +142,7 @@ class DisplayManager:
         if self.live_instance:
             try:
                 self.live_instance.stop()
-            except:
+            except Exception:
                 pass
         time.sleep(0.2)
 
@@ -156,7 +156,7 @@ class DisplayManager:
         if self.live_instance:
             try:
                 self.live_instance.start()
-            except:
+            except Exception:
                 pass
 
     def show_loading_screen(self, duration=5.0):
@@ -174,7 +174,7 @@ class DisplayManager:
 
         try:
             self.live_instance.start()
-        except:
+        except Exception:
             return
 
         start_time = time.time()
