@@ -1,0 +1,12 @@
+version: "3.8"
+
+services:
+  funstat:
+    build: .
+    container_name: funstat_farm
+    restart: unless-stopped
+    volumes:
+      - ./sessions:/app/sessions
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
