@@ -2,13 +2,23 @@
 
 <div align="center">
 
-**Automated Telegram Bot Manager**
+**Automated Telegram Bot Manager & OCR Solver**
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
-[![Telethon](https://img.shields.io/badge/Telethon-1.24+-green.svg)](https://github.com/LonamiWebs/Telethon)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Status: PoC / Archived](https://img.shields.io/badge/Status-PoC%20%7C%20Archived-orange.svg?style=flat-square)](#)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg?style=flat-square)](https://www.python.org/)
+[![Telethon](https://img.shields.io/badge/Telethon-1.24+-green.svg?style=flat-square)](https://github.com/LonamiWebs/Telethon)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 
 </div>
+
+> [!NOTE]
+> ### ⚠️ Project Status: PoC / Educational Archive (Method Patched)
+> **Метод начисления за ссылки был закрыт (пропатчен) на стороне целевого бота.**
+> Проект оставлен в публичном доступе в исследовательских и демонстрационных целях:
+> - Реализация асинхронной работы с Telegram API на Telethon
+> - Гибридный OCR-пайплайн обхода графической капчи (EasyOCR + Tesseract OCR)
+> - Алгоритмы шумоподавления и предобработки изображений через Pillow и NumPy
+
 
 ---
 
