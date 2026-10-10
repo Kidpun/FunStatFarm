@@ -1,0 +1,15 @@
+[Unit]
+Description=FunStatFarm Automation Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/funstat
+ExecStart=/opt/funstat/venv/bin/python main.py
+Restart=always
+RestartSec=10
+EnvironmentFile=/opt/funstat/.env
+
+[Install]
+WantedBy=multi-user.target
